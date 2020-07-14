@@ -24,7 +24,8 @@ def build_transforms(cfg, is_train=True):
 
     to_bgr255 = cfg.INPUT.TO_BGR255
     normalize_transform = T.Normalize(
-        mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=to_bgr255
+        mean=cfg.INPUT.PIXEL_MEAN, std=cfg.INPUT.PIXEL_STD, to_bgr255=to_bgr255,
+        ignore_cls=cfg.INPUT.IGNORE_CLS,
     )
     color_jitter = T.ColorJitter(
         brightness=brightness,

@@ -13,7 +13,10 @@ from maskrcnn_benchmark.utils.comm import get_world_size, synchronize
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 from maskrcnn_benchmark.engine.inference import inference
 
-from apex import amp
+try:
+    from apex import amp
+except:
+    amp = None
 
 def reduce_loss_dict(loss_dict):
     """
@@ -91,10 +94,13 @@ def do_train(
         meters.update(loss=losses_reduced, **loss_dict_reduced)
 
         optimizer.zero_grad()
-        # Note: If mixed precision is not used, this ends up doing nothing
-        # Otherwise apply loss scaling for mixed-precision recipe
-        with amp.scale_loss(losses, optimizer) as scaled_losses:
-            scaled_losses.backward()
+        if amp is None:
+            losses.backward()
+        else:
+            # Note: If mixed precision is not used, this ends up doing nothing
+            # Otherwise apply loss scaling for mixed-precision recipe
+            with amp.scale_loss(losses, optimizer) as scaled_losses:
+                scaled_losses.backward()
         optimizer.step()
         scheduler.step()
 

@@ -64,6 +64,37 @@ _C.INPUT.HUE = 0.0
 _C.INPUT.HORIZONTAL_FLIP_PROB_TRAIN = 0.5
 _C.INPUT.VERTICAL_FLIP_PROB_TRAIN = 0.0
 
+
+_C.INPUT.IGNORE_CLS = False
+
+# -----------------------------------------------------------------------------
+# Weakly supervised
+# -----------------------------------------------------------------------------
+_C.WEAK = CN()
+_C.WEAK.NUM_CLASSES = 20
+# _C.WEAK.NUM_CLASSES2 = 60
+# _C.WEAK.IOU_WEIGHT2 = 1.0
+# _C.WEAK.CLS_WEIGHT2 = 1.0
+# _C.WEAK.BOX_WEIGHT2 = 0.5
+_C.WEAK.MODE = ""
+# _C.WEAK.ROI_SOFTMAX = True
+# _C.WEAK.RPN_BETA = 3.0
+_C.WEAK.ROI_BETA = 5.0
+# _C.WEAK.DETACH_BOX = False
+# _C.WEAK.RPN_TOPK = 1000
+# _C.WEAK.RPN_BATCH = 100
+# _C.WEAK.DROPOUT1 = 0.5
+# _C.WEAK.POOL = "amax"  # amax / mean / max
+_C.WEAK.CFG2 = ""
+_C.WEAK.BILINEAR = False
+_C.WEAK.OBJ_WEIGHT = 0.1
+# _C.WEAK.RPN_CLS_WEIGHT = 0.5
+_C.WEAK.SCORE_COEF = 0.4
+_C.WEAK.TEST_THRESHOLD = 0.0
+# _C.WEAK.SELF_PROP = 0
+# _C.WEAK.OICR = 0
+# _C.WEAK.IMG_CLS = 0.0
+
 # -----------------------------------------------------------------------------
 # Dataset
 # -----------------------------------------------------------------------------
@@ -200,6 +231,7 @@ _C.MODEL.ROI_HEADS.POSITIVE_FRACTION = 0.25
 # balance obtaining high recall with not having too many low precision
 # detections that will slow down inference post processing steps (like NMS)
 _C.MODEL.ROI_HEADS.SCORE_THRESH = 0.05
+_C.MODEL.ROI_HEADS.SCORE_THRESH_CFG2 = 0.05
 # Overlap threshold used for non-maximum suppression (suppress boxes with
 # IoU >= this threshold)
 _C.MODEL.ROI_HEADS.NMS = 0.5

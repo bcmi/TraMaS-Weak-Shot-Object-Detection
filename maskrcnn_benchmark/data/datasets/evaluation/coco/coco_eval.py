@@ -18,10 +18,11 @@ def do_coco_evaluation(
     iou_types,
     expected_results,
     expected_results_sigma_tol,
+    ignore_cls=False,
 ):
     logger = logging.getLogger("maskrcnn_benchmark.inference")
 
-    if box_only:
+    if box_only or ignore_cls:
         logger.info("Evaluating bbox proposals")
         areas = {"all": "", "small": "s", "medium": "m", "large": "l"}
         res = COCOResults("box_proposal")
@@ -230,7 +231,10 @@ def evaluate_box_proposals(
 
         # sort predictions in descending order
         # TODO maybe remove this and make it explicit in the documentation
-        inds = prediction.get_field("objectness").sort(descending=True)[1]
+        try:
+            inds = prediction.get_field("objectness").sort(descending=True)[1]
+        except:
+            inds = prediction.get_field("scores").sort(descending=True)[1]
         prediction = prediction[inds]
 
         ann_ids = dataset.coco.getAnnIds(imgIds=original_id)

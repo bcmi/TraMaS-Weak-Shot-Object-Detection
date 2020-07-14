@@ -2,7 +2,10 @@ from maskrcnn_benchmark.data import datasets
 
 from .coco import coco_evaluation
 from .voc import voc_evaluation
-from .cityscapes import abs_cityscapes_evaluation
+try:
+    from .cityscapes import abs_cityscapes_evaluation
+except:
+    pass
 
 def evaluate(dataset, predictions, output_folder, **kwargs):
     """evaluate dataset using different methods based on dataset type.

@@ -11,6 +11,7 @@ def coco_evaluation(
     iou_types,
     expected_results,
     expected_results_sigma_tol,
+    ignore_cls=False,
 ):
     if isinstance(dataset, COCODataset):
         return do_orig_coco_evaluation(
@@ -21,6 +22,7 @@ def coco_evaluation(
             iou_types=iou_types,
             expected_results=expected_results,
             expected_results_sigma_tol=expected_results_sigma_tol,
+            ignore_cls=ignore_cls,
         )
     elif isinstance(dataset, AbstractDataset):
         return do_wrapped_coco_evaluation(

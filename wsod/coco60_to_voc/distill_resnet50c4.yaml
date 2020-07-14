@@ -1,0 +1,43 @@
+OUTPUT_DIR: "output/coco60_to_voc/mil_it2/distill_resnet50"
+MODEL:
+  META_ARCHITECTURE: "GeneralizedRCNN"
+  WEIGHT: "catalog://ImageNetPretrained/MSRA/R-50"
+  RPN:
+    PRE_NMS_TOP_N_TEST: 6000
+    POST_NMS_TOP_N_TEST: 300
+    ANCHOR_SIZES: (128, 256, 512)
+  # ROI_HEADS:
+  #   SCORE_THRESH: 0.01
+  #   DETECTIONS_PER_IMG: 100
+DATASETS:
+  TRAIN: ("voc_2007_trainval_coco60-to-voc_it2_0.8_cocostyle",)
+  # TRAIN: ("voc_2007_trainval",)
+  TEST: ("voc_2007_test",)
+INPUT:
+  MIN_SIZE_TRAIN: (640,)
+  MAX_SIZE_TRAIN: 1066
+  MIN_SIZE_TEST: 640
+  MAX_SIZE_TEST: 1066
+SOLVER:
+  BASE_LR: 0.004
+  STEPS: (12500,)
+  MAX_ITER: 17500
+  IMS_PER_BATCH: 4
+  # BASE_LR: 0.008
+  # STEPS: (6500,)
+  # MAX_ITER: 9000
+  # IMS_PER_BATCH: 8
+  WEIGHT_DECAY: 0.0001
+  CHECKPOINT_PERIOD: 100000
+TEST:
+  IMS_PER_BATCH: 4
+  BBOX_AUG:
+    ENABLED: True # set False to disable test test augmentation
+    # Horizontal flip at the original scale (id transform)
+    H_FLIP: True
+    # Each scale is the pixel size of an image's shortest side
+    SCALES: (320,)
+    # Max pixel size of the longer side
+    # MAX_SIZE: 2000
+    # Horizontal flip at each scale
+    SCALE_H_FLIP: True

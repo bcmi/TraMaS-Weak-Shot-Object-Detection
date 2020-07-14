@@ -9,38 +9,104 @@ from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import boxlist_iou
 
 
-def do_voc_evaluation(dataset, predictions, output_folder, logger):
-    # TODO need to make the use_07_metric format available
-    # for the user to choose
-    pred_boxlists = []
-    gt_boxlists = []
-    for image_id, prediction in enumerate(predictions):
-        img_info = dataset.get_img_info(image_id)
-        image_width = img_info["width"]
-        image_height = img_info["height"]
-        prediction = prediction.resize((image_width, image_height))
-        pred_boxlists.append(prediction)
+def do_voc_evaluation(dataset, predictions, output_folder, logger, ignore_cls=False):
+    all_result_str = ""
+    if ignore_cls:
+        ignore_cls_choices = [True]
+    else:
+        ignore_cls_choices = [False, True]
+    for ignore_cls in ignore_cls_choices:
+        for use_07_metric in [False, True]:
+            result_str = '\nignore_cls=%s use_07_metric=%s:\n' % (ignore_cls, use_07_metric)
 
-        gt_boxlist = dataset.get_groundtruth(image_id)
-        gt_boxlists.append(gt_boxlist)
-    result = eval_detection_voc(
-        pred_boxlists=pred_boxlists,
-        gt_boxlists=gt_boxlists,
-        iou_thresh=0.5,
-        use_07_metric=True,
-    )
-    result_str = "mAP: {:.4f}\n".format(result["map"])
-    for i, ap in enumerate(result["ap"]):
-        if i == 0:  # skip background
-            continue
-        result_str += "{:<16}: {:.4f}\n".format(
-            dataset.map_class_id_to_class_name(i), ap
-        )
-    logger.info(result_str)
+            pred_boxlists = []
+            gt_boxlists = []
+            for image_id, prediction in enumerate(predictions):
+                img_info = dataset.get_img_info(image_id)
+                image_width = img_info["width"]
+                image_height = img_info["height"]
+
+                prediction = prediction.resize((image_width, image_height))
+                if ignore_cls:
+                    # predictions are changed only at the second for iteration [ignore_cls=True].
+                    l = prediction.get_field('labels')
+                    prediction.add_field('labels', (l>0).to(l.dtype))
+                pred_boxlists.append(prediction)
+
+                gt_boxlist = dataset.get_groundtruth(image_id)
+                if ignore_cls:
+                    l = gt_boxlist.get_field('labels')
+                    gt_boxlist.add_field('labels', (l>0).to(l.dtype))
+                gt_boxlists.append(gt_boxlist)
+
+            result = eval_detection_voc(
+                pred_boxlists=pred_boxlists,
+                gt_boxlists=gt_boxlists,
+                iou_thresh=0.5,
+                use_07_metric=use_07_metric,
+            )
+
+            result_str += "mAP: {:.4f}\n".format(result["map"])
+            # per class AP
+            for i, ap in enumerate(result["ap"]):
+                if i == 0:  # skip background
+                    continue
+                result_str += "{:<16}: {:.4f}\n".format(
+                    dataset.map_class_id_to_class_name(i), ap
+                )
+
+            # 11 points AP
+            if use_07_metric:
+                result_str += ' '.join(["{:0.4f}".format(x) for x in result["map11"]]) + '\n\n'
+
+            # recalls
+            result_str += "recall@iou=0.5: {:.4f}\n".format(np.nanmean(result["rec0.5"]))
+            for i, rec in enumerate(result["rec0.5"]):
+                if i == 0:  # skip background
+                    continue
+                result_str += "{:<16}: {:.4f}\n".format(
+                    dataset.map_class_id_to_class_name(i), rec
+                )
+
+            result_str += '\n'
+            logger.info(result_str)
+            all_result_str += result_str
+
     if output_folder:
         with open(os.path.join(output_folder, "result.txt"), "w") as fid:
-            fid.write(result_str)
+            fid.write(all_result_str)
     return result
+    # # TODO need to make the use_07_metric format available
+    # # for the user to choose
+    # pred_boxlists = []
+    # gt_boxlists = []
+    # for image_id, prediction in enumerate(predictions):
+    #     img_info = dataset.get_img_info(image_id)
+    #     image_width = img_info["width"]
+    #     image_height = img_info["height"]
+    #     prediction = prediction.resize((image_width, image_height))
+    #     pred_boxlists.append(prediction)
+
+    #     gt_boxlist = dataset.get_groundtruth(image_id)
+    #     gt_boxlists.append(gt_boxlist)
+    # result = eval_detection_voc(
+    #     pred_boxlists=pred_boxlists,
+    #     gt_boxlists=gt_boxlists,
+    #     iou_thresh=0.5,
+    #     use_07_metric=True,
+    # )
+    # result_str = "mAP: {:.4f}\n".format(result["map"])
+    # for i, ap in enumerate(result["ap"]):
+    #     if i == 0:  # skip background
+    #         continue
+    #     result_str += "{:<16}: {:.4f}\n".format(
+    #         dataset.map_class_id_to_class_name(i), ap
+    #     )
+    # logger.info(result_str)
+    # if output_folder:
+    #     with open(os.path.join(output_folder, "result.txt"), "w") as fid:
+    #         fid.write(result_str)
+    # return result
 
 
 def eval_detection_voc(pred_boxlists, gt_boxlists, iou_thresh=0.5, use_07_metric=False):
@@ -59,8 +125,10 @@ def eval_detection_voc(pred_boxlists, gt_boxlists, iou_thresh=0.5, use_07_metric
     prec, rec = calc_detection_voc_prec_rec(
         pred_boxlists=pred_boxlists, gt_boxlists=gt_boxlists, iou_thresh=iou_thresh
     )
-    ap = calc_detection_voc_ap(prec, rec, use_07_metric=use_07_metric)
-    return {"ap": ap, "map": np.nanmean(ap)}
+    ap, pr11 = calc_detection_voc_ap(prec, rec, use_07_metric=use_07_metric)
+    return {"ap": ap, "map": np.nanmean(ap), "map11": np.nanmean(pr11, 0),
+            "prec": prec, "rec": rec, "rec0.5": [r[-1] if r is not None else np.nan for r in rec]}
+    # return {"ap": ap, "map": np.nanmean(ap)}
 
 
 def calc_detection_voc_prec_rec(gt_boxlists, pred_boxlists, iou_thresh=0.5):
@@ -182,9 +250,12 @@ def calc_detection_voc_ap(prec, rec, use_07_metric=False):
 
     n_fg_class = len(prec)
     ap = np.empty(n_fg_class)
+    pr11 = np.empty((n_fg_class, 11))
+    print ("calc_detection_voc_ap: n_fg_class =", n_fg_class)
     for l in range(n_fg_class):
         if prec[l] is None or rec[l] is None:
             ap[l] = np.nan
+            pr11[l] = np.nan
             continue
 
         if use_07_metric:
@@ -196,6 +267,7 @@ def calc_detection_voc_ap(prec, rec, use_07_metric=False):
                 else:
                     p = np.max(np.nan_to_num(prec[l])[rec[l] >= t])
                 ap[l] += p / 11
+                pr11[l, int(t*10)] = p
         else:
             # correct AP calculation
             # first append sentinel values at the end
@@ -211,4 +283,4 @@ def calc_detection_voc_ap(prec, rec, use_07_metric=False):
             # and sum (\Delta recall) * prec
             ap[l] = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
 
-    return ap
+    return ap, pr11

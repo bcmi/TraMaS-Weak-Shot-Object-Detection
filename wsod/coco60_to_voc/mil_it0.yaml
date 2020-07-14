@@ -1,0 +1,43 @@
+OUTPUT_DIR: "output/coco60_to_voc/mil_it0"
+MODEL:
+  META_ARCHITECTURE: "WeakTransfer"
+  CLS_AGNOSTIC_BBOX_REG: False
+  WEIGHT: "catalog://ImageNetPretrained/MSRA/R-50"
+  ROI_HEADS:
+    SCORE_THRESH: 0.05
+    SCORE_THRESH_CFG2: 0.01
+    NMS: 0.4
+    DETECTIONS_PER_IMG: 100
+  ROI_BOX_HEAD:
+    NUM_CLASSES: 21
+WEAK:
+  NUM_CLASSES: 20
+  MODE: "transfer"
+  ROI_BETA: 5.0   # beta in the paper
+  CFG2: "output/coco60_to_voc/ocud_it0/config.yml"
+  BILINEAR: True
+  OBJ_WEIGHT: 0.2 # lambda in the paper
+  SCORE_COEF: 0.5 # eta in the paper
+INPUT:
+  MIN_SIZE_TRAIN: (640,)
+  MAX_SIZE_TRAIN: 1066
+  MIN_SIZE_TEST: 640
+  MAX_SIZE_TEST: 1066
+DATASETS:
+  TRAIN: ("voc_2007_trainval",)
+  TEST: ("voc_2007_test","voc_2007_trainval","coco60_train2017_21987","coco60_val2017_969")
+SOLVER:
+  BASE_LR: 0.008
+  WEIGHT_DECAY: 0.0001
+  # set as 3500,5000 to be consistent with paper. roughly 8 epochs, lr decay at 6th epoch
+  STEPS: (3500,) # (3340,)
+  MAX_ITER: 5000 # 5011
+  IMS_PER_BATCH: 8
+  CHECKPOINT_PERIOD: 100000
+TEST:
+  IMS_PER_BATCH: 4
+  BBOX_AUG:
+    ENABLED: True
+    H_FLIP: True
+    SCALES: (320,) # additional to the original 640 scale
+    SCALE_H_FLIP: True

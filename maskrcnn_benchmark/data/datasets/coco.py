@@ -102,3 +102,28 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
         img_id = self.id_to_img_map[index]
         img_data = self.coco.imgs[img_id]
         return img_data
+
+    def get_groundtruth(self, idx, raw_id=True):
+        coco = self.coco
+        img_id = self.ids[idx]
+        ann_ids = coco.getAnnIds(imgIds=img_id)
+        anno = coco.loadAnns(ann_ids)
+
+        img_info = self.get_img_info(idx)
+
+        anno = [obj for obj in anno if obj["iscrowd"] == 0]
+        boxes = [obj["bbox"] for obj in anno]
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, (img_info['width'], img_info['height']), mode="xywh").convert("xyxy")
+
+        classes = [obj["category_id"] for obj in anno]
+        if raw_id == False:
+            classes = [self.json_category_id_to_contiguous_id[c] for c in classes]
+        classes = torch.tensor(classes, dtype=torch.int64)
+        target.add_field("labels", classes)
+
+        target = target.clip_to_image(remove_empty=True)
+
+        # if self._transforms is not None:
+        #     img, target = self._transforms(img, target)
+        return target

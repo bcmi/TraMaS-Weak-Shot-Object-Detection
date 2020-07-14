@@ -71,6 +71,7 @@ def inference(
         expected_results=(),
         expected_results_sigma_tol=4,
         output_folder=None,
+        ignore_cls=None,
 ):
     # convert to a torch.device for efficiency
     device = torch.device(device)
@@ -78,40 +79,49 @@ def inference(
     logger = logging.getLogger("maskrcnn_benchmark.inference")
     dataset = data_loader.dataset
     logger.info("Start evaluation on {} dataset({} images).".format(dataset_name, len(dataset)))
-    total_timer = Timer()
-    inference_timer = Timer()
-    total_timer.tic()
-    predictions = compute_on_dataset(model, data_loader, device, bbox_aug, inference_timer)
-    # wait for all processes to complete before measuring the time
-    synchronize()
-    total_time = total_timer.toc()
-    total_time_str = get_time_str(total_time)
-    logger.info(
-        "Total run time: {} ({} s / img per device, on {} devices)".format(
-            total_time_str, total_time * num_devices / len(dataset), num_devices
-        )
-    )
-    total_infer_time = get_time_str(inference_timer.total_time)
-    logger.info(
-        "Model inference time: {} ({} s / img per device, on {} devices)".format(
-            total_infer_time,
-            inference_timer.total_time * num_devices / len(dataset),
-            num_devices,
-        )
-    )
 
-    predictions = _accumulate_predictions_from_multiple_gpus(predictions)
-    if not is_main_process():
-        return
+    predictions_path = os.path.join(output_folder, "predictions.pth")
+    if os.path.exists(predictions_path):
+        if not is_main_process():
+            return
+        logger.info("Load existing predictions {}".format(predictions_path))
+        predictions = torch.load(predictions_path)
+    else:
+        total_timer = Timer()
+        inference_timer = Timer()
+        total_timer.tic()
+        predictions = compute_on_dataset(model, data_loader, device, bbox_aug, inference_timer)
+        # wait for all processes to complete before measuring the time
+        synchronize()
+        total_time = total_timer.toc()
+        total_time_str = get_time_str(total_time)
+        logger.info(
+            "Total run time: {} ({} s / img per device, on {} devices)".format(
+                total_time_str, total_time * num_devices / len(dataset), num_devices
+            )
+        )
+        total_infer_time = get_time_str(inference_timer.total_time)
+        logger.info(
+            "Model inference time: {} ({} s / img per device, on {} devices)".format(
+                total_infer_time,
+                inference_timer.total_time * num_devices / len(dataset),
+                num_devices,
+            )
+        )
 
-    if output_folder:
-        torch.save(predictions, os.path.join(output_folder, "predictions.pth"))
+        predictions = _accumulate_predictions_from_multiple_gpus(predictions)
+        if not is_main_process():
+            return
+
+        if output_folder:
+            torch.save(predictions, predictions_path)
 
     extra_args = dict(
         box_only=box_only,
         iou_types=iou_types,
         expected_results=expected_results,
         expected_results_sigma_tol=expected_results_sigma_tol,
+        ignore_cls=ignore_cls,
     )
 
     return evaluate(dataset=dataset,

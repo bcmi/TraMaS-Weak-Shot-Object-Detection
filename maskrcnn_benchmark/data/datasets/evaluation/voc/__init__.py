@@ -3,7 +3,7 @@ import logging
 from .voc_eval import do_voc_evaluation
 
 
-def voc_evaluation(dataset, predictions, output_folder, box_only, **_):
+def voc_evaluation(dataset, predictions, output_folder, box_only, ignore_cls=None, **_):
     logger = logging.getLogger("maskrcnn_benchmark.inference")
     if box_only:
         logger.warning("voc evaluation doesn't support box_only, ignored.")
@@ -13,4 +13,5 @@ def voc_evaluation(dataset, predictions, output_folder, box_only, **_):
         predictions=predictions,
         output_folder=output_folder,
         logger=logger,
+        ignore_cls=ignore_cls,
     )

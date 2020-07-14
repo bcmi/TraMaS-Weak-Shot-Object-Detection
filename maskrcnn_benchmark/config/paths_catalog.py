@@ -63,6 +63,10 @@ class DatasetCatalog(object):
             "img_dir": "voc/VOC2007/JPEGImages",
             "ann_file": "voc/VOC2007/Annotations/pascal_val2007.json"
         },
+        "voc_2007_trainval": {
+            "data_dir": "voc/VOC2007",
+            "split": "trainval"
+        },
         "voc_2007_test": {
             "data_dir": "voc/VOC2007",
             "split": "test"
@@ -151,13 +155,30 @@ class DatasetCatalog(object):
 
     @staticmethod
     def get(name):
-        if "coco" in name:
+        if 'coco' in name:
+        # if name.startswith("coco") or 'cocostyle' in name:
             data_dir = DatasetCatalog.DATA_DIR
-            attrs = DatasetCatalog.DATASETS[name]
-            args = dict(
-                root=os.path.join(data_dir, attrs["img_dir"]),
-                ann_file=os.path.join(data_dir, attrs["ann_file"]),
-            )
+            if name.startswith('coco60'):
+                img_dir = "coco/" + name.split('_')[1]
+                ann_file = f"coco/annotations/{name}.json"
+                args = dict(
+                    root=os.path.join(data_dir, img_dir),
+                    ann_file=os.path.join(data_dir, ann_file),
+                )
+            elif name.startswith('voc'):
+                assert name.endswith('cocostyle')
+                img_dir = "voc/VOC2007/JPEGImages"
+                ann_file = f"voc/VOC2007/{name[:-len('_cocostyle')]}.json"
+                args = dict(
+                    root=os.path.join(data_dir, img_dir),
+                    ann_file=os.path.join(data_dir, ann_file),
+                )
+            else:
+                attrs = DatasetCatalog.DATASETS[name]
+                args = dict(
+                    root=os.path.join(data_dir, attrs["img_dir"]),
+                    ann_file=os.path.join(data_dir, attrs["ann_file"]),
+                )
             return dict(
                 factory="COCODataset",
                 args=args,

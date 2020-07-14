@@ -7,7 +7,10 @@ from torch.nn.modules.utils import _pair
 
 from maskrcnn_benchmark import _C
 
-from apex import amp
+try:
+    from apex import amp
+except:
+    pass
 
 class _ROIPool(Function):
     @staticmethod
@@ -53,9 +56,13 @@ class ROIPool(nn.Module):
         self.output_size = output_size
         self.spatial_scale = spatial_scale
 
-    @amp.float_function
-    def forward(self, input, rois):
-        return roi_pool(input, rois, self.output_size, self.spatial_scale)
+    try:
+        @amp.float_function
+        def forward(self, input, rois):
+            return roi_pool(input, rois, self.output_size, self.spatial_scale)
+    except:
+        def forward(self, input, rois):
+            return roi_pool(input, rois, self.output_size, self.spatial_scale)
 
     def __repr__(self):
         tmpstr = self.__class__.__name__ + "("

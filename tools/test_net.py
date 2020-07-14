@@ -21,7 +21,9 @@ from maskrcnn_benchmark.utils.miscellaneous import mkdir
 try:
     from apex import amp
 except ImportError:
-    raise ImportError('Use APEX for mixed precision via apex.amp')
+    # raise ImportError('Use APEX for mixed precision via apex.amp')
+    print ('warning: Use APEX for multi-precision via apex.amp')
+    amp = None
 
 
 def main():
@@ -61,8 +63,8 @@ def main():
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
-    save_dir = ""
-    logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank())
+    save_dir = cfg.OUTPUT_DIR
+    logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank(), filename="testlog.txt")
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(cfg)
 
@@ -72,9 +74,10 @@ def main():
     model = build_detection_model(cfg)
     model.to(cfg.MODEL.DEVICE)
 
-    # Initialize mixed-precision if necessary
-    use_mixed_precision = cfg.DTYPE == 'float16'
-    amp_handle = amp.init(enabled=use_mixed_precision, verbose=cfg.AMP_VERBOSE)
+    if amp is not None:
+        # Initialize mixed-precision if necessary
+        use_mixed_precision = cfg.DTYPE == 'float16'
+        amp_handle = amp.init(enabled=use_mixed_precision, verbose=cfg.AMP_VERBOSE)
 
     output_dir = cfg.OUTPUT_DIR
     checkpointer = DetectronCheckpointer(cfg, model, save_dir=output_dir)
@@ -94,7 +97,11 @@ def main():
             mkdir(output_folder)
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
+    ignore_cls = cfg.INPUT.IGNORE_CLS
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+        if not ignore_cls and 'coco' in dataset_name and cfg.WEAK.MODE and cfg.WEAK.NUM_CLASSES != 80:
+            logger.info(f"override ignore_cls -> True for {dataset_name}")
+            ignore_cls = True
         inference(
             model,
             data_loader_val,
@@ -106,6 +113,7 @@ def main():
             expected_results=cfg.TEST.EXPECTED_RESULTS,
             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
             output_folder=output_folder,
+            ignore_cls=ignore_cls,
         )
         synchronize()
 

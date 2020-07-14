@@ -107,10 +107,11 @@ class ToTensor(object):
 
 
 class Normalize(object):
-    def __init__(self, mean, std, to_bgr255=True):
+    def __init__(self, mean, std, to_bgr255=True, ignore_cls=False):
         self.mean = mean
         self.std = std
         self.to_bgr255 = to_bgr255
+        self.ignore_cls = ignore_cls
 
     def __call__(self, image, target=None):
         if self.to_bgr255:
@@ -118,4 +119,7 @@ class Normalize(object):
         image = F.normalize(image, mean=self.mean, std=self.std)
         if target is None:
             return image
+        if self.ignore_cls:
+            l = target.get_field('labels')
+            target.add_field('labels', torch.ones_like(l))
         return image, target

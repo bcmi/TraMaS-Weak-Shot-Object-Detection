@@ -30,10 +30,12 @@ from maskrcnn_benchmark.utils.miscellaneous import mkdir, save_config
 try:
     from apex import amp
 except ImportError:
-    raise ImportError('Use APEX for multi-precision via apex.amp')
+    # raise ImportError('Use APEX for multi-precision via apex.amp')
+    print ('warning: Use APEX for multi-precision via apex.amp')
+    amp = None
 
 
-def train(cfg, local_rank, distributed):
+def train(cfg, local_rank, distributed, start_iter=None):
     model = build_detection_model(cfg)
     device = torch.device(cfg.MODEL.DEVICE)
     model.to(device)
@@ -41,20 +43,22 @@ def train(cfg, local_rank, distributed):
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
 
-    # Initialize mixed-precision training
-    use_mixed_precision = cfg.DTYPE == "float16"
-    amp_opt_level = 'O1' if use_mixed_precision else 'O0'
-    model, optimizer = amp.initialize(model, optimizer, opt_level=amp_opt_level)
+    if amp is not None:
+        # Initialize mixed-precision training
+        use_mixed_precision = cfg.DTYPE == "float16"
+        amp_opt_level = 'O1' if use_mixed_precision else 'O0'
+        model, optimizer = amp.initialize(model, optimizer, opt_level=amp_opt_level)
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[local_rank], output_device=local_rank,
             # this should be removed if we update BatchNorm stats
             broadcast_buffers=False,
+            # find_unused_parameters=True
         )
 
     arguments = {}
-    arguments["iteration"] = 0
+    arguments["iteration"] = start_iter or 0
 
     output_dir = cfg.OUTPUT_DIR
 
@@ -62,7 +66,16 @@ def train(cfg, local_rank, distributed):
     checkpointer = DetectronCheckpointer(
         cfg, model, optimizer, scheduler, output_dir, save_to_disk
     )
-    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT)
+    load_scheduler = start_iter is None
+    if cfg.MODEL.WEIGHT and cfg.MODEL.WEIGHT[0] == '~':
+        load_optimizer = False
+        path = cfg.MODEL.WEIGHT[1:]
+    else:
+        load_optimizer = True
+        path = cfg.MODEL.WEIGHT
+    extra_checkpoint_data = checkpointer.load(path, load_optimizer=load_optimizer, load_scheduler=load_scheduler)
+    if start_iter is not None:
+        del extra_checkpoint_data["iteration"]
     arguments.update(extra_checkpoint_data)
 
     data_loader = make_data_loader(
@@ -114,7 +127,11 @@ def run_test(cfg, model, distributed):
             mkdir(output_folder)
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
+    ignore_cls = cfg.INPUT.IGNORE_CLS
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+        if not ignore_cls and 'coco' in dataset_name and cfg.WEAK.MODE and cfg.WEAK.NUM_CLASSES != 80:
+            print(f"override ignore_cls -> True for {dataset_name}")
+            ignore_cls = True
         inference(
             model,
             data_loader_val,
@@ -126,6 +143,7 @@ def run_test(cfg, model, distributed):
             expected_results=cfg.TEST.EXPECTED_RESULTS,
             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
             output_folder=output_folder,
+            ignore_cls=ignore_cls,
         )
         synchronize()
 
@@ -146,6 +164,7 @@ def main():
         help="Do not test the final model",
         action="store_true",
     )
+    parser.add_argument("--start_iter", type=int, default=None)
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",
@@ -191,7 +210,9 @@ def main():
     # save overloaded model config in the output directory
     save_config(cfg, output_config_path)
 
-    model = train(cfg, args.local_rank, args.distributed)
+    if args.start_iter is not None:
+        logger.info("start_iter is set to {args.start_iter}. will ignore scheduler and iteration in pretrain checkpoint")
+    model = train(cfg, args.local_rank, args.distributed, args.start_iter)
 
     if not args.skip_test:
         run_test(cfg, model, args.distributed)
