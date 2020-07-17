@@ -2,19 +2,20 @@
 
 The code accompanies the following paper:
 
-* Boosting Weakly Supervised Object Detection with Progressive Knowledge Transfer. Yuanyi Zhong, Jianfeng Wang, Jian Peng, Lei Zhang. ECCV 2020.
+* [Boosting Weakly Supervised Object Detection with Progressive Knowledge Transfer](http://arxiv.org/abs/2007.07986). Yuanyi Zhong, Jianfeng Wang, Jian Peng, Lei Zhang. ECCV 2020.
 
 Relevant diff from the original maskrcnn-benchmark in commit [ecc6b5f](https://github.com/mikuhatsune/wsod_transfer/commit/ecc6b5f82f67a4293fe7b201aabfcc759626a82b) .
-Please follow the instructions of maskrcnn-benchmark [`README.old.md`](README.old.md) to setup the environment.
+Please follow the instructions [`README.old.md`](README.old.md) to setup the environment. Code has been tested with pytorch 1.4 and cuda 10.1.
 
 ## Key files
+
 - [`wsod/coco60_to_voc`](wsod/coco60_to_voc): YAML configs for the COCO60-to-VOC experiment.
-- [`wsod/pseudo_label.py`](wsod/pseudo_label.py): pseudo ground truth mining script on source and target datasets.
-- [`maskrcnn_benchmark/modelling/detector/weak_transfer.py`](maskrcnn_benchmark/modelling/detector/weak_transfer.py): the multi-instance learning in the paper.
+- [`wsod/pseudo_label.py`](wsod/pseudo_label.py): pseudo ground truth mining script on source and target datasets. The output annotations json files will be saved to `./datasets/coco/annotations/` and `./datasets/voc/VOC2007/`.
+- [`maskrcnn_benchmark/modeling/detector/weak_transfer.py`](maskrcnn_benchmark/modeling/detector/weak_transfer.py): the multi-instance learning in the paper.
 
 ## Data
 
-Annotations for the `COCO-60`, `COCO-60-full` and `VOC` datasets on [Google Drive](https://drive.google.com/drive/folders/1SrDVRttw6K6xSBJFwu0JnFU6YnEJQaDN?usp=sharing).
+Follow instructions in [`README.old.md`](README.old.md) to setup the `datasets` folder. Annotations for the `COCO-60`, `COCO-60-full` and `VOC` datasets on [Google Drive](https://drive.google.com/drive/folders/1SrDVRttw6K6xSBJFwu0JnFU6YnEJQaDN?usp=sharing).
 
 - `coco60_train2017_21987.json`, `coco60_val2017_969.json`, `coco60full_train2017_118287.json`, `coco60full_val2017_5000.json`: place under folder `./datasets/coco/annotations/`
 - `voc_2007_trainval.json`, `voc_2007_test.json`: place under `./datasets/voc/VOC2007/`
@@ -100,3 +101,6 @@ tvmonitor       : 0.6180
 Due to randomness (and this code being a refactored version..), the numbers may vary from run to run and slightly differ from the paper's. But the difference should be rather limited. The example result here gives 58.75% mAP at K=2 which is higher than that in the paper.
 
 Demo outputs are on [Google Drive](https://drive.google.com/drive/folders/1SrDVRttw6K6xSBJFwu0JnFU6YnEJQaDN?usp=sharing).
+
+## License
+wsod_transfer inherits the MIT license from maskrcnn-benchmark. See [LICENSE](LICENSE) for additional details.
