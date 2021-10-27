@@ -50,7 +50,7 @@ class BinaryMaskList(object):
 
         assert isinstance(size, (list, tuple))
         assert len(size) == 2
-
+        
         if isinstance(masks, torch.Tensor):
             # The raw data representation is passed as argument
             masks = masks.clone()

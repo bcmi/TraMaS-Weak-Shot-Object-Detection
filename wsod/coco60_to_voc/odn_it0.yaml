@@ -1,4 +1,5 @@
-OUTPUT_DIR: "output/coco60_to_voc/ocud_it0"
+OUTPUT_DIR: "output/coco60_to_voc/odn_it0"
+EXTRACT_FEATURES: False
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
   WEIGHT: "catalog://ImageNetPretrained/MSRA/R-50"
@@ -10,6 +11,7 @@ MODEL:
     NUM_CLASSES: 2
   ROI_HEADS:
     SCORE_THRESH: 0.01
+    #MASK_ON: True
 DATASETS:
   # ok to use coco60_train2017_21987 only, coco60_val2017_969 has only 969 images
   TRAIN: ("coco60_train2017_21987","coco60_val2017_969")
@@ -23,8 +25,8 @@ INPUT:
 SOLVER:
   BASE_LR: 0.008
   # set as 12000, 17500 to be consistent with the paper
-  STEPS: (12000,) # (11478,)
-  MAX_ITER: 17500 # 17217
+  STEPS: (15000,) # (11478,)
+  MAX_ITER: 22000 # 17217
   WEIGHT_DECAY: 0.0001
   CHECKPOINT_PERIOD: 100000
-  IMS_PER_BATCH: 8
+  IMS_PER_BATCH: 4

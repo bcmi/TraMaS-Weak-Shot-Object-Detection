@@ -160,7 +160,11 @@ class RPNModule(torch.nn.Module):
         assert len(features) == 1, "only support 1 level for now"
 
         with torch.no_grad():
-            det_features = det.backbone(images.tensors)
+            det_pre_features,det_features = det.backbone(images.tensors)
+            # det_features=[det_features]
+            _,masks=det.mask_generator(det_pre_features,None)
+            masks=F.interpolate(masks,det_features.shape[2:])
+            det_features=[det.conv_fusion(torch.cat((det_features,masks),1))]
             # det_proposals, _, det_objectness, det_rpn_box_regression, det_anchors = det.rpn(
             #     images, det_features, targets=None, return_more=True)
             det_proposals, _ = det.rpn(images, det_features, targets=None)
@@ -369,7 +373,7 @@ class ROIBoxHead(torch.nn.Module):
         return proposals, losses
 
 
-class WeakTransfer(nn.Module):
+class MILCls(nn.Module):
 
     def __init__(self, cfg):
         super().__init__()
@@ -400,7 +404,7 @@ class WeakTransfer(nn.Module):
         self.det_container.model = GeneralizedRCNN(cfg2)
         output_dir = cfg.WEAK.CFG2[:cfg.WEAK.CFG2.rfind('/')]  #cfg.WEAK.CFG2_OUTPUT_DIR
         checkpointer = DetectronCheckpointer(cfg2, self.det_container.model, save_dir=output_dir)
-        checkpointer.load("fail")
+        checkpointer.load(cfg2.MODEL.WEIGHT)
         self.det_container.model.eval()
 
     '''
@@ -411,12 +415,14 @@ class WeakTransfer(nn.Module):
     '''
     def forward(self, images1, targets1=None):
         losses = {}
-        rpn_feat1 = self.backbone(images1.tensors)
+        prefeatures,rpn_feat1 = self.backbone(images1.tensors)
+        rpn_feat1=[rpn_feat1]
 
         if self.training:
             eye = torch.eye(self.WEAK.NUM_CLASSES, dtype=rpn_feat1[-1].dtype, device=rpn_feat1[-1].device)
             for t in targets1:
-                t.add_field("img_labels", eye[t.get_field("labels") - 1, :].sum(0).clamp_(0,1))
+                #print(t.get_field("labels"))
+                t.add_field("img_labels", eye[t.get_field("labels").type(torch.long) - 1, :].sum(0).clamp_(0,1))
 
         self.det_container.model.to(images1.tensors.device)
 

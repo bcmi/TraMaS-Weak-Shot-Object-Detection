@@ -5,6 +5,7 @@ Basic training script for PyTorch
 
 # Set up custom environment before nearly anything else is imported
 # NOTE: this should be the first import (no not reorder)
+from maskrcnn_benchmark.engine.extract_features import extract_features
 from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:skip
 
 import argparse
@@ -54,7 +55,7 @@ def train(cfg, local_rank, distributed, start_iter=None):
             model, device_ids=[local_rank], output_device=local_rank,
             # this should be removed if we update BatchNorm stats
             broadcast_buffers=False,
-            # find_unused_parameters=True
+            find_unused_parameters=True
         )
 
     arguments = {}
@@ -71,7 +72,7 @@ def train(cfg, local_rank, distributed, start_iter=None):
         load_optimizer = False
         path = cfg.MODEL.WEIGHT[1:]
     else:
-        load_optimizer = True
+        load_optimizer = False
         path = cfg.MODEL.WEIGHT
     extra_checkpoint_data = checkpointer.load(path, load_optimizer=load_optimizer, load_scheduler=load_scheduler)
     if start_iter is not None:
@@ -92,6 +93,23 @@ def train(cfg, local_rank, distributed, start_iter=None):
         data_loader_val = None
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+
+    if cfg.EXTRACT_FEATURES:
+        extract_features(
+            cfg,
+            model,
+            data_loader,
+            data_loader_val,
+            optimizer,
+            scheduler,
+            checkpointer,
+            device,
+            checkpoint_period,
+            test_period,
+            arguments,
+        )
+        return
+
 
     do_train(
         cfg,
@@ -212,6 +230,10 @@ def main():
 
     if args.start_iter is not None:
         logger.info("start_iter is set to {args.start_iter}. will ignore scheduler and iteration in pretrain checkpoint")
+    
+    
+
+
     model = train(cfg, args.local_rank, args.distributed, args.start_iter)
 
     if not args.skip_test:

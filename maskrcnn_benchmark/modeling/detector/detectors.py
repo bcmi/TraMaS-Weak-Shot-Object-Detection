@@ -1,8 +1,8 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 from .generalized_rcnn import GeneralizedRCNN
-from .weak_transfer import WeakTransfer
+from .mil_classifier import MILCls
 
-_DETECTION_META_ARCHITECTURES = {"GeneralizedRCNN": GeneralizedRCNN, "WeakTransfer": WeakTransfer}
+_DETECTION_META_ARCHITECTURES = {"GeneralizedRCNN": GeneralizedRCNN, "MILCls": MILCls}
 
 
 def build_detection_model(cfg):

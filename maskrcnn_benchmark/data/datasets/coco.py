@@ -36,6 +36,7 @@ def has_valid_annotation(anno):
     return False
 
 
+
 class COCODataset(torchvision.datasets.coco.CocoDetection):
     def __init__(
         self, ann_file, root, remove_images_without_annotations, transforms=None
@@ -55,6 +56,8 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
             self.ids = ids
 
         self.categories = {cat['id']: cat['name'] for cat in self.coco.cats.values()}
+
+        # self.categories2id={cat['id']: i for i,cat in enumerate(self.coco.cats.values())}
 
         self.json_category_id_to_contiguous_id = {
             v: i + 1 for i, v in enumerate(self.coco.getCatIds())
@@ -92,11 +95,25 @@ class COCODataset(torchvision.datasets.coco.CocoDetection):
             target.add_field("keypoints", keypoints)
 
         target = target.clip_to_image(remove_empty=True)
-
+        #print(img.size,target.get_field('masks').get_mask_tensor().shape)
+        target.add_field("img_labels",self.toimgclass(target.get_field("labels")))
+        
         if self._transforms is not None:
             img, target = self._transforms(img, target)
+        #print(img.shape,target.get_field('masks').get_mask_tensor().shape)
+        
+        if anno and 'weight' in anno[0]:
+            weights=[obj['weight'] for obj in anno]
+            weights=torch.tensor(weights)
+            target.add_field('weights',weights)
 
         return img, target, idx
+
+    def toimgclass(self,classes):
+        img_classes=torch.zeros((80))
+        for i,c in enumerate(classes):
+            img_classes[c-1]=1
+        return img_classes
 
     def get_img_info(self, index):
         img_id = self.id_to_img_map[index]

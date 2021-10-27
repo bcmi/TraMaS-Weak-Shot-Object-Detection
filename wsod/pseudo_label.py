@@ -37,8 +37,10 @@ p_trainval = {}
 p_trainval.update(zip(datasets[0].ids, zip(gt_trainval, d_trainval)))
 
 
-with open('datasets/voc/VOC2007/voc_2007_trainval.json','r') as f:
+with open('/users/usr/VOC/VOC2007/voc_2007_trainval.json','r') as f:
     d = json.load(f)
+
+voc_categories=d['categories']
 
 th = float(th)
 annos = []
@@ -61,13 +63,13 @@ for img_id, (t, p) in tqdm(p_trainval.items(), mininterval=20):
             bbox = bbox.tolist()
             id += 1
             anno = {'area': bbox[2]*bbox[3], 'iscrowd': 0, 'image_id': int(img_id), 
-                    'bbox': bbox, 'category_id': l, 'id': id, 'ignore': 0}
+                    'bbox': bbox, 'category_id': l, 'id': id, 'ignore': 0,'weight':-1}
             annos.append(anno)
 
 print ('threshold', th, 'result #instances', len(annos))
 d['annotations'] = annos
 
-fn = 'datasets/voc/VOC2007/%s' % json_voc
+fn = '/users/usr/VOC/VOC2007/%s' % json_voc
 print ("save to " + fn + '\n')
 with open(fn,'w') as f:
     json.dump(d, f)
@@ -149,7 +151,10 @@ def mine_boxes(p_trainval, ov_th, score_th, mined_class_label=1, visualize=False
     for img_id, (t, p) in tqdm(p_trainval.items(), mininterval=20):
     # for img_id, (t, p) in p_trainval.items():
         p = p.resize(t.size)
-        p.add_field('labels', (p.get_field('labels') > 0).to(torch.long) * mined_class_label)
+        # p.add_field('labels', (p.get_field('labels') > 0).to(torch.long) * mined_class_label)
+        # p.add_field('labels', p.get_field('labels') .to(torch.long)+90)
+        #print(p.get_field('labels'))
+        
         p = boxlist_nms(p, 0.4)
         s = p.get_field('scores')
         # Strategy 1: keep at least one box per image even the score is low
@@ -207,15 +212,15 @@ def mine_boxes(p_trainval, ov_th, score_th, mined_class_label=1, visualize=False
             bbox = bbox.tolist()
             id += 1
             anno = {'area': bbox[2]*bbox[3], 'iscrowd': 0, 'image_id': int(img_id), 
-                    'bbox': bbox, 'category_id': labels[i], 'id': id, 'ignore': 0}
+                    'bbox': bbox, 'category_id': labels[i], 'id': id, 'ignore': 0,'weight':-1}
             annos.append(anno)
 
     print ('mined_images', mined_images, 'mined_boxes', mined_boxes)
     return annos
 
-with open('datasets/coco/annotations/%s.json' % coco_train,'r') as f:
+with open('/users/coco/annotations/%s.json' % coco_train,'r') as f:
     d1 = json.load(f)
-with open('datasets/coco/annotations/%s.json' % coco_val,'r') as f:
+with open('/users/coco/annotations/%s.json' % coco_val,'r') as f:
     d2 = json.load(f)
 
 # d = d2.copy()
@@ -223,15 +228,15 @@ with open('datasets/coco/annotations/%s.json' % coco_val,'r') as f:
 
 for split, d, p in zip(['train','val'], [d1, d2], [p_train, p_val]):
     mined_class_label = 1
-    d['categories'].append({'supercategory': 'none', 'id': mined_class_label, 'name': '_mined'})
-
+    # d['categories'].append({'supercategory': 'none', 'id': mined_class_label, 'name': '_mined'})
+    d['categories']=voc_categories+d['categories']
     annos = mine_boxes(p, ov_th=0.1, score_th=th, mined_class_label=mined_class_label)
 
     print ('threshold', th, 'result #instances', len(annos))
     d['annotations'] = annos
 
     json_coco = 'coco60_%s2017_%s_it%s_%s.json' % (split, tag, it, th)
-    fn = 'datasets/coco/annotations/%s' % json_coco
+    fn = '/users/coco/annotations/%s' % json_coco
     print ("save to " + fn + '\n')
     with open(fn,'w') as f:
         json.dump(d, f)

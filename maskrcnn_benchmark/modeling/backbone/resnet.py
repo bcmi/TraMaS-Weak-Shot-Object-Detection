@@ -50,7 +50,7 @@ ResNet50StagesTo5 = tuple(
 # ResNet-50 up to stage 4 (excludes stage 5)
 ResNet50StagesTo4 = tuple(
     StageSpec(index=i, block_count=c, return_features=r)
-    for (i, c, r) in ((1, 3, False), (2, 4, False), (3, 6, True))
+    for (i, c, r) in ((1, 3, False), (2, 4, True), (3, 6, True))
 )
 # ResNet-101 (including all stages)
 ResNet101StagesTo5 = tuple(

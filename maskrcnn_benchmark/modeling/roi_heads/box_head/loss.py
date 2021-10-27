@@ -1,5 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
+from torch._C import dtype
 from torch.nn import functional as F
 
 from maskrcnn_benchmark.layers import smooth_l1_loss
@@ -40,7 +41,7 @@ class FastRCNNLossComputation(object):
         match_quality_matrix = boxlist_iou(target, proposal)
         matched_idxs = self.proposal_matcher(match_quality_matrix)
         # Fast RCNN only need "labels" field for selecting the targets
-        target = target.copy_with_fields("labels")
+        target = target.copy_with_fields(["labels","weights"])
         # get the targets corresponding GT for each proposal
         # NB: need to clamp the indices because we can have a single
         # GT in the image, and matched_idxs can be -2, which goes
@@ -52,6 +53,7 @@ class FastRCNNLossComputation(object):
     def prepare_targets(self, proposals, targets):
         labels = []
         regression_targets = []
+        weights=[]
         for proposals_per_image, targets_per_image in zip(proposals, targets):
             matched_targets = self.match_targets_to_proposals(
                 proposals_per_image, targets_per_image
@@ -61,13 +63,17 @@ class FastRCNNLossComputation(object):
             labels_per_image = matched_targets.get_field("labels")
             labels_per_image = labels_per_image.to(dtype=torch.int64)
 
+            weights_per_image=matched_targets.get_field("weights")
+            weights_per_image=weights_per_image.to(dtype=torch.float32)
             # Label background (below the low threshold)
             bg_inds = matched_idxs == Matcher.BELOW_LOW_THRESHOLD
             labels_per_image[bg_inds] = 0
+            #weights_per_image[bg_inds]=0
 
             # Label ignore proposals (between low and high thresholds)
             ignore_inds = matched_idxs == Matcher.BETWEEN_THRESHOLDS
             labels_per_image[ignore_inds] = -1  # -1 is ignored by sampler
+            #weights_per_image[ignore_inds]=-1
 
             # compute regression targets
             regression_targets_per_image = self.box_coder.encode(
@@ -76,8 +82,8 @@ class FastRCNNLossComputation(object):
 
             labels.append(labels_per_image)
             regression_targets.append(regression_targets_per_image)
-
-        return labels, regression_targets
+            weights.append(weights_per_image)
+        return labels, regression_targets,weights
 
     def subsample(self, proposals, targets):
         """
@@ -90,19 +96,19 @@ class FastRCNNLossComputation(object):
             targets (list[BoxList])
         """
 
-        labels, regression_targets = self.prepare_targets(proposals, targets)
+        labels, regression_targets,weights = self.prepare_targets(proposals, targets)
         sampled_pos_inds, sampled_neg_inds = self.fg_bg_sampler(labels)
-
         proposals = list(proposals)
         # add corresponding label and regression_targets information to the bounding boxes
-        for labels_per_image, regression_targets_per_image, proposals_per_image in zip(
-            labels, regression_targets, proposals
+        for labels_per_image, regression_targets_per_image,weights_per_image, proposals_per_image in zip(
+            labels, regression_targets,weights, proposals
         ):
             proposals_per_image.add_field("labels", labels_per_image)
             proposals_per_image.add_field(
                 "regression_targets", regression_targets_per_image
             )
-
+            proposals_per_image.add_field("weights",weights_per_image)
+            #print(labels_per_image.shape,weights_per_image.shape)
         # distributed sampled proposals, that were obtained on all feature maps
         # concatenated via the fg_bg_sampler, into individual feature map levels
         for img_idx, (pos_inds_img, neg_inds_img) in enumerate(
@@ -114,6 +120,29 @@ class FastRCNNLossComputation(object):
 
         self._proposals = proposals
         return proposals
+    
+    def weighted_cross_entropy(self,pred, label, weight, avg_factor=None, reduce=True):
+        if avg_factor is None:
+            avg_factor = torch.sum(weight > 0).float().item()
+        raw = F.cross_entropy(pred, label,reduction='none')
+        if reduce:
+            return (raw*weight).mean()
+        else:
+            return raw * weight / avg_factor
+    
+    def weighted_smoothl1(self,pred, target, weight, beta=1.0, avg_factor=None):
+        weight=weight.unsqueeze(1).repeat(1,4)
+        if avg_factor is None:
+            avg_factor = torch.sum(weight > 0).float().item() + 1e-6
+        #loss = smooth_l1_loss(pred, target, beta, reduction='none')
+        if avg_factor is None:
+            avg_factor = torch.sum(weight > 0).float().item() + 1e-6
+        n = torch.abs(pred - target)
+        cond = n < beta
+        loss = torch.where(cond, 0.5 * n ** 2 / beta, n - 0.5 * beta)
+        return (loss*weight).sum()
+
+
 
     def __call__(self, class_logits, box_regression):
         """
@@ -142,9 +171,10 @@ class FastRCNNLossComputation(object):
         regression_targets = cat(
             [proposal.get_field("regression_targets") for proposal in proposals], dim=0
         )
+        weights=cat([proposal.get_field("weights") for proposal in proposals], dim=0)
 
-        classification_loss = F.cross_entropy(class_logits, labels)
-
+        classification_loss = self.weighted_cross_entropy(class_logits,labels,weights)
+        
         # get indices that correspond to the regression targets for
         # the corresponding ground truth labels, to be used with
         # advanced indexing
@@ -156,12 +186,19 @@ class FastRCNNLossComputation(object):
             map_inds = 4 * labels_pos[:, None] + torch.tensor(
                 [0, 1, 2, 3], device=device)
 
-        box_loss = smooth_l1_loss(
+        box_loss = self.weighted_smoothl1(
             box_regression[sampled_pos_inds_subset[:, None], map_inds],
             regression_targets[sampled_pos_inds_subset],
-            size_average=False,
-            beta=1,
+            weights[sampled_pos_inds_subset],
+            avg_factor=1
         )
+
+        # box_loss = smooth_l1_loss(
+        #     box_regression[sampled_pos_inds_subset[:, None], map_inds],
+        #     regression_targets[sampled_pos_inds_subset],
+        #     size_average=False,
+        #     beta=1,
+        # )
         box_loss = box_loss / labels.numel()
 
         return classification_loss, box_loss

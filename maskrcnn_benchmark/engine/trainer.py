@@ -131,7 +131,17 @@ def do_train(
             )
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
+        #dataset_names = cfg.DATASETS.TEST
+        #output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", dataset_names[0])
+        
+        #os.makedirs(output_folder)
         if data_loader_val is not None and test_period > 0 and iteration % test_period == 0:
+            i=iteration//test_period
+            dataset_names = cfg.DATASETS.TEST
+            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", dataset_names[0],str(i))
+            if not os.path.exists(output_folder):
+                os.makedirs(output_folder)
+
             meters_val = MetricLogger(delimiter="  ")
             synchronize()
             _ = inference(  # The result can be used for additional logging, e. g. for TensorBoard
@@ -145,7 +155,7 @@ def do_train(
                 device=cfg.MODEL.DEVICE,
                 expected_results=cfg.TEST.EXPECTED_RESULTS,
                 expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-                output_folder=None,
+                output_folder=output_folder,
             )
             synchronize()
             model.train()
