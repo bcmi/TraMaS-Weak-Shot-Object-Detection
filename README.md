@@ -28,5 +28,5 @@ We have summarized the existing papers and codes on weak-shot learning in the fo
 [https://github.com/bcmi/Awesome-Weak-Shot-Learning](https://github.com/bcmi/Awesome-Weak-Shot-Learning)
 
 ## Acknowledgements
-Thanks to [WSOD with Progressive Knowledge Transfer](https://github.com/mikuhatsune/wsod_transfer) providing the base architecture, iterative training strategy, and data annotations for our project. We further transfer mask prior and semantic similarity to bridge the gap between novel categories and base categorie by adding the code for Mask Generator and SimNet.
+Thanks to [WSOD with Progressive Knowledge Transfer](https://github.com/mikuhatsune/wsod_transfer) providing the base architecture, iterative training strategy, and data annotations for our project. We further transfer mask prior and semantic similarity to bridge the gap between novel categories and base categories by adding the code for Mask Generator and SimNet.
 
