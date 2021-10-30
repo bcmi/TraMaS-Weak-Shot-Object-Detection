@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from torch.optim.sgd import SGD
 import numpy as np
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 
 class SimDataset():
     def __init__(self, filename,is_train=True):
@@ -158,24 +159,28 @@ def make_pairwise_features_labels(features,labels):
 def train_simnet(data_path, output_path):
     if not os.path.exists(output_path):
         os.mkdir(output_path)
+    
+    epoches=10
     train_dataset = SimDataset(data_path)
     train_sampler = SimSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False, sampler=train_sampler, num_workers=4)
 
     model = SimNet(2048)
+    model=nn.DataParallel(model)
+    model.cuda()
     model.train()
 
     optimizer = SGD(model.parameters(), lr=1e-5, momentum=0.9)
     criterion = nn.BCELoss()
-
-    for features, labels in train_dataloader:
-        pair_features,labels=make_pairwise_features_labels(features,labels)
-        scores = model(pair_features)
-        loss = criterion(scores, labels)
-        print(loss)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+    for epoch in range(epoches):
+        for features, labels in train_dataloader:
+            pair_features,labels=make_pairwise_features_labels(features,labels)
+            scores = model(pair_features.cuda())
+            loss = criterion(scores, labels.cuda())
+            print(loss)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
     torch.save(model.state_dict(), os.path.join(output_path, 'simnet.pth'))
 
@@ -192,6 +197,8 @@ def assign_weights(data_path,checkpoint_path):
     test_dataloader = DataLoader(test_dataset,sampler=test_sampler, batch_size=1, shuffle=False, num_workers=4)
 
     model = SimNet(2048)
+    model=nn.DataParallel(model)
+    model.cuda()
     checkpoint = torch.load(os.path.join(checkpoint_path,'simnet.pth'))
     model.load_state_dict(checkpoint)
     model.eval()
@@ -200,7 +207,7 @@ def assign_weights(data_path,checkpoint_path):
         for i in range(features.shape[1]):
             f=features[:,i].unsqueeze(1)
             pair_features=make_inf_pairwise_features(f,features)
-            scores = model(pair_features)
+            scores = model(pair_features.cuda())
             weight = scores.mean(0)
             weights.append(weight.cpu().item())
     json.dump(weights,open(os.path.join(checkpoint_path,'weights.json'),'w'))
